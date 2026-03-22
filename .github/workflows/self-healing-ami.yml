@@ -202,3 +202,49 @@ jobs:
           PREVIOUS_VERSION: ${{ needs.canary.outputs.previous_version }}
           INSTANCE_REFRESH_ID: ${{ needs.canary.outputs.instance_refresh_id }}
         run: bash scripts/rollback_ami.sh
+
+  dashboard:
+    needs: [detect, build, canary, evaluate, promote, rollback]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Generate dashboard snapshot
+        env:
+          PIPELINE_REASON: ${{ needs.detect.outputs.reason || 'none' }}
+          CANARY_INSTANCE_REFRESH_ID: ${{ needs.canary.outputs.instance_refresh_id || 'n/a' }}
+          ROLLOUT_STATUS: >-
+            ${{ needs.rollback.result == 'success' && 'rolled back'
+              || needs.promote.result == 'success' && 'promoted'
+              || needs.canary.result == 'success' && 'canary in progress'
+              || needs.build.result == 'success' && 'validated build ready'
+              || needs.detect.outputs.rebuild_required == 'false' && 'no rollout required'
+              || 'pipeline pending' }}
+          VULNERABILITY_STATUS: >-
+            ${{ needs.detect.outputs.rebuild_required == 'true' && format('drift detected: {0}', needs.detect.outputs.reason)
+              || 'healthy - no active rebuild trigger' }}
+        run: |
+          current_ami="$(aws ssm get-parameter --name "${AMI_PARAMETER_NAME}" --region "${AWS_REGION}" --query 'Parameter.Value' --output text 2>/dev/null || echo unknown)"
+          last_good_ami="$(aws ssm get-parameter --name "${LAST_KNOWN_GOOD_PARAMETER_NAME}" --region "${AWS_REGION}" --query 'Parameter.Value' --output text 2>/dev/null || echo unknown)"
+          if [[ "${{ needs.promote.result }}" == "success" ]]; then
+            last_patch_time="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          else
+            last_patch_time="$(aws ec2 describe-images --image-ids "$current_ami" --region "${AWS_REGION}" --query 'Images[0].CreationDate' --output text 2>/dev/null || echo unknown)"
+          fi
+          CURRENT_AMI_VERSION="$current_ami" \
+          LAST_KNOWN_GOOD_AMI="$last_good_ami" \
+          LAST_PATCH_TIME="$last_patch_time" \
+          bash scripts/generate_dashboard_status.sh dashboard/status.json
+
+      - name: Upload developer dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: ami-developer-dashboard
+          path: dashboard

@@ -17,6 +17,9 @@ This project builds a hardened Ubuntu 24.04 Golden AMI with Packer and extends i
 ```text
 .
 |-- .github/workflows/self-healing-ami.yml
+|-- dashboard/
+|   |-- index.html
+|   `-- status.json
 |-- ubuntu.pkr.hcl
 |-- variables.pkr.hcl
 |-- scripts/
@@ -28,6 +31,7 @@ This project builds a hardened Ubuntu 24.04 Golden AMI with Packer and extends i
 |   |-- canary_rollout.sh
 |   |-- check_canary_health.sh
 |   |-- promote_ami.sh
+|   |-- generate_dashboard_status.sh
 |   `-- rollback_ami.sh
 `-- README.md
 ```
@@ -51,6 +55,18 @@ The Packer build writes `manifest.json`, which the GitHub Actions workflow uses 
 4. Update the Auto Scaling Group to a new launch template version and start a canary instance refresh.
 5. Check a CloudWatch alarm after the canary bake window.
 6. Promote the AMI to SSM Parameter Store if healthy, or roll back automatically if unhealthy.
+7. Generate a developer dashboard snapshot showing the current AMI version, vulnerability status, last patch time, and rollout status.
+
+## Developer Dashboard
+
+The repo now includes a lightweight dashboard in `dashboard/index.html`.
+
+- Current AMI version
+- Vulnerability status
+- Last patch time
+- Rollout status
+
+Each workflow run generates `dashboard/status.json` and uploads the whole `dashboard/` directory as the `ami-developer-dashboard` artifact. You can also publish the same directory with GitHub Pages for a persistent internal status page.
 
 ## Required GitHub Secrets
 

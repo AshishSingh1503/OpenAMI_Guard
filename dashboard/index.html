@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AMI Pipeline Dashboard</title>
+  <style>
+    :root {
+      --bg: #f3efe7;
+      --panel: rgba(255, 252, 245, 0.92);
+      --ink: #1f2a2e;
+      --muted: #607075;
+      --accent: #005f73;
+      --ok: #2a9d8f;
+      --warn: #e9c46a;
+      --bad: #c44536;
+      --border: rgba(31, 42, 46, 0.08);
+      --shadow: 0 18px 45px rgba(31, 42, 46, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(233, 196, 106, 0.35), transparent 28%),
+        radial-gradient(circle at top right, rgba(42, 157, 143, 0.22), transparent 24%),
+        linear-gradient(160deg, #efe8da 0%, #f8f5ef 55%, #e7efe9 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .shell {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.2rem, 5vw, 4rem);
+      line-height: 0.95;
+      max-width: 8ch;
+    }
+
+    .subtitle {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: auto -30px -30px auto;
+      width: 100px;
+      height: 100px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(0, 95, 115, 0.18), transparent);
+    }
+
+    .label {
+      margin: 0 0 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .value {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    .value.small {
+      font-size: 1.1rem;
+      line-height: 1.4;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-top: 14px;
+      background: rgba(96, 112, 117, 0.12);
+      color: var(--ink);
+    }
+
+    .status.ok {
+      background: rgba(42, 157, 143, 0.14);
+      color: #1e6e64;
+    }
+
+    .status.warn {
+      background: rgba(233, 196, 106, 0.22);
+      color: #8e6a13;
+    }
+
+    .status.bad {
+      background: rgba(196, 69, 54, 0.16);
+      color: #8c281f;
+    }
+
+    .footer {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .details {
+      margin-top: 26px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 18px;
+    }
+
+    .detail-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 12px;
+    }
+
+    .detail-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(31, 42, 46, 0.08);
+      padding-bottom: 10px;
+    }
+
+    .detail-list strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">Developer Dashboard</p>
+      <h1>Intelligent Self-Healing AMI Pipeline</h1>
+      <p class="subtitle">Track the currently published AMI, vulnerability posture, last patch event, and rollout progress without digging through workflow logs.</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <p class="label">Current AMI Version</p>
+        <p id="currentAmiVersion" class="value">Loading...</p>
+      </article>
+
+      <article class="card">
+        <p class="label">Vulnerability Status</p>
+        <p id="vulnerabilityStatus" class="value">Loading...</p>
+        <div id="vulnerabilityBadge" class="status">Pending</div>
+      </article>
+
+      <article class="card">
+        <p class="label">Last Patch Time</p>
+        <p id="lastPatchTime" class="value small">Loading...</p>
+      </article>
+
+      <article class="card">
+        <p class="label">Rollout Status</p>
+        <p id="rolloutStatus" class="value">Loading...</p>
+        <div id="rolloutBadge" class="status">Pending</div>
+      </article>
+    </section>
+
+    <section class="details">
+      <article class="card">
+        <p class="label">Pipeline Context</p>
+        <ul class="detail-list">
+          <li><span>Reason</span><strong id="pipelineReason">Loading...</strong></li>
+          <li><span>Last Known Good AMI</span><strong id="lastKnownGoodAmi">Loading...</strong></li>
+          <li><span>Canary Refresh ID</span><strong id="canaryInstanceRefreshId">Loading...</strong></li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <p class="label">Snapshot Metadata</p>
+        <ul class="detail-list">
+          <li><span>Generated At</span><strong id="generatedAt">Loading...</strong></li>
+          <li><span>Source</span><strong>dashboard/status.json</strong></li>
+          <li><span>Mode</span><strong>Static UI + generated pipeline snapshot</strong></li>
+        </ul>
+      </article>
+    </section>
+
+    <p class="footer">Publish the dashboard artifact or host the `dashboard/` directory with GitHub Pages to share pipeline health with the team.</p>
+  </main>
+
+  <script>
+    const setText = (id, value) => {
+      document.getElementById(id).textContent = value || "unknown";
+    };
+
+    const setBadge = (id, value, kind) => {
+      const badge = document.getElementById(id);
+      badge.textContent = value || "unknown";
+      badge.className = `status ${kind}`;
+    };
+
+    const vulnerabilityKind = (value) => {
+      const normalized = (value || "").toLowerCase();
+      if (normalized.includes("healthy") || normalized.includes("clear")) return "ok";
+      if (normalized.includes("drift") || normalized.includes("pending")) return "warn";
+      if (normalized.includes("critical") || normalized.includes("high") || normalized.includes("failed")) return "bad";
+      return "";
+    };
+
+    const rolloutKind = (value) => {
+      const normalized = (value || "").toLowerCase();
+      if (normalized.includes("promoted") || normalized.includes("healthy") || normalized.includes("complete")) return "ok";
+      if (normalized.includes("rolling") || normalized.includes("canary") || normalized.includes("pending")) return "warn";
+      if (normalized.includes("rollback") || normalized.includes("failed") || normalized.includes("cancelled")) return "bad";
+      return "";
+    };
+
+    fetch("./status.json", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => {
+        setText("currentAmiVersion", data.currentAmiVersion);
+        setText("vulnerabilityStatus", data.vulnerabilityStatus);
+        setText("lastPatchTime", data.lastPatchTime);
+        setText("rolloutStatus", data.rolloutStatus);
+        setText("pipelineReason", data.pipelineReason);
+        setText("lastKnownGoodAmi", data.lastKnownGoodAmi);
+        setText("canaryInstanceRefreshId", data.canaryInstanceRefreshId);
+        setText("generatedAt", data.generatedAt);
+        setBadge("vulnerabilityBadge", data.vulnerabilityStatus, vulnerabilityKind(data.vulnerabilityStatus));
+        setBadge("rolloutBadge", data.rolloutStatus, rolloutKind(data.rolloutStatus));
+      })
+      .catch(() => {
+        setText("currentAmiVersion", "Unavailable");
+        setText("vulnerabilityStatus", "Snapshot missing");
+        setText("lastPatchTime", "Snapshot missing");
+        setText("rolloutStatus", "Snapshot missing");
+        setText("pipelineReason", "Snapshot missing");
+        setText("lastKnownGoodAmi", "Snapshot missing");
+        setText("canaryInstanceRefreshId", "Snapshot missing");
+        setText("generatedAt", "Snapshot missing");
+        setBadge("vulnerabilityBadge", "Snapshot missing", "warn");
+        setBadge("rolloutBadge", "Snapshot missing", "warn");
+      });
+  </script>
+</body>
+</html>

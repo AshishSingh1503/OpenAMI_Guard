@@ -1,0 +1,10 @@
+{
+  "currentAmiVersion": "unknown",
+  "vulnerabilityStatus": "pending pipeline snapshot",
+  "lastPatchTime": "unknown",
+  "rolloutStatus": "idle",
+  "pipelineReason": "none",
+  "lastKnownGoodAmi": "unknown",
+  "canaryInstanceRefreshId": "n/a",
+  "generatedAt": "unknown"
+}
