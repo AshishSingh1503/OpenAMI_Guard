@@ -15,4 +15,15 @@ variable "ami_name_prefix" {
 
 variable "ami_description" {
   type    = string
-  default = "Golden Ubuntu 24.04 LTS with SSM and CloudWatch Age
+  default = "Golden Ubuntu 24.04 LTS with SSM and CloudWatch Agent"
+}
+
+variable "kms_key_id" {
+  type    = string
+  default = "alias/aws/ebs"
+}
+
+variable "volume_size" {
+  type    = number
+  default = 16
+}

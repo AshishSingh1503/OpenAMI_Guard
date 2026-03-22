@@ -1,0 +1,204 @@
+name: Intelligent Self-Healing AMI Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: Force rebuild even when no vulnerability or base-image drift is detected
+        required: false
+        default: "false"
+      skip_rollout:
+        description: Build and test only, skip canary rollout
+        required: false
+        default: "false"
+  schedule:
+    - cron: "0 */6 * * *"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  AMI_PARAMETER_NAME: /golden/ubuntu24/ami_id
+  LAST_KNOWN_GOOD_PARAMETER_NAME: /golden/ubuntu24/last_known_good_ami_id
+  CANARY_PERCENTAGE: "10"
+  INSTANCE_WARMUP: "180"
+  BAKE_TIME_SECONDS: "600"
+  SEVERITY_THRESHOLD: HIGH
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      rebuild_required: ${{ steps.decide.outputs.rebuild_required }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - id: detect
+        name: Detect vulnerability drift
+        run: bash scripts/detect_vulnerabilities.sh
+
+      - id: decide
+        name: Finalize rebuild decision
+        run: |
+          rebuild_required="${{ steps.detect.outputs.rebuild_required }}"
+          reason="${{ steps.detect.outputs.reason }}"
+          if [[ "${{ github.event.inputs.force_rebuild || 'false' }}" == "true" ]]; then
+            rebuild_required=true
+            reason=manual-force
+          fi
+          echo "rebuild_required=${rebuild_required}" >> "$GITHUB_OUTPUT"
+          echo "reason=${reason}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: detect
+    if: ${{ needs.detect.outputs.rebuild_required == 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      ami_id: ${{ steps.capture.outputs.ami_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install Packer
+        uses: hashicorp/setup-packer@v3
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Build AMI
+        run: |
+          packer init .
+          packer validate -var-file=variables.pkr.hcl ubuntu.pkr.hcl
+          packer build -var-file=variables.pkr.hcl ubuntu.pkr.hcl
+
+      - id: capture
+        name: Capture AMI ID
+        run: |
+          ami_id="$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d':' -f2)"
+          echo "ami_id=${ami_id}" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: build
+    if: ${{ needs.build.outputs.ami_id != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Automated validation layer
+        env:
+          TEST_SUBNET_ID: ${{ secrets.TEST_SUBNET_ID }}
+          TEST_SECURITY_GROUP_ID: ${{ secrets.TEST_SECURITY_GROUP_ID }}
+          TEST_INSTANCE_PROFILE: ${{ secrets.TEST_INSTANCE_PROFILE }}
+        run: bash scripts/test_ami.sh "${{ needs.build.outputs.ami_id }}"
+
+  canary:
+    needs: [build, test]
+    if: ${{ needs.build.outputs.ami_id != '' && github.event.inputs.skip_rollout != 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      previous_version: ${{ steps.rollout.outputs.previous_version }}
+      instance_refresh_id: ${{ steps.rollout.outputs.instance_refresh_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: rollout
+        name: Start canary rollout
+        env:
+          LAUNCH_TEMPLATE_ID: ${{ secrets.LAUNCH_TEMPLATE_ID }}
+          AUTO_SCALING_GROUP_NAME: ${{ secrets.AUTO_SCALING_GROUP_NAME }}
+        run: bash scripts/canary_rollout.sh "${{ needs.build.outputs.ami_id }}"
+
+  evaluate:
+    needs: [build, canary]
+    if: ${{ needs.canary.outputs.instance_refresh_id != '' }}
+    runs-on: ubuntu-latest
+    outputs:
+      rollback_required: ${{ steps.check.outputs.rollback_required }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow canary bake window
+        run: sleep "${{ env.BAKE_TIME_SECONDS }}"
+
+      - id: check
+        name: Evaluate canary health
+        env:
+          AUTO_SCALING_GROUP_NAME: ${{ secrets.AUTO_SCALING_GROUP_NAME }}
+          INSTANCE_REFRESH_ID: ${{ needs.canary.outputs.instance_refresh_id }}
+          HEALTH_ALARM_NAME: ${{ secrets.HEALTH_ALARM_NAME }}
+        run: bash scripts/check_canary_health.sh
+
+  promote:
+    needs: [build, canary, evaluate]
+    if: ${{ needs.evaluate.outputs.rollback_required == 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Promote candidate AMI
+        env:
+          AUTO_SCALING_GROUP_NAME: ${{ secrets.AUTO_SCALING_GROUP_NAME }}
+          INSTANCE_REFRESH_ID: ${{ needs.canary.outputs.instance_refresh_id }}
+        run: bash scripts/promote_ami.sh "${{ needs.build.outputs.ami_id }}"
+
+  rollback:
+    needs: [canary, evaluate]
+    if: ${{ needs.evaluate.outputs.rollback_required == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Roll back canary release
+        env:
+          AUTO_SCALING_GROUP_NAME: ${{ secrets.AUTO_SCALING_GROUP_NAME }}
+          LAUNCH_TEMPLATE_ID: ${{ secrets.LAUNCH_TEMPLATE_ID }}
+          PREVIOUS_VERSION: ${{ needs.canary.outputs.previous_version }}
+          INSTANCE_REFRESH_ID: ${{ needs.canary.outputs.instance_refresh_id }}
+        run: bash scripts/rollback_ami.sh
