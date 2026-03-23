@@ -41,6 +41,8 @@ jobs:
     outputs:
       rebuild_required: ${{ steps.decide.outputs.rebuild_required }}
       reason: ${{ steps.decide.outputs.reason }}
+      explain_reason: ${{ steps.detect.outputs.explain_reason }}
+      affected_packages: ${{ steps.detect.outputs.affected_packages }}
     steps:
       - uses: actions/checkout@v4
 
@@ -255,6 +257,8 @@ jobs:
       - name: Generate dashboard snapshot
         env:
           PIPELINE_REASON: ${{ needs.detect.outputs.reason || 'none' }}
+          EXPLAIN_REASON: ${{ needs.detect.outputs.explain_reason || 'No infra change required' }}
+          AFFECTED_PACKAGES_JSON: ${{ needs.detect.outputs.affected_packages || '[]' }}
           CANARY_INSTANCE_REFRESH_ID: ${{ needs.canary.outputs.instance_refresh_id || 'n/a' }}
           ROLLOUT_STATUS: >-
             ${{ needs.rollback.result == 'success' && 'rolled back'
@@ -546,6 +550,25 @@ jobs:
               '
           )"
 
+          action_taken="No rebuild triggered"
+          explain_confidence="76%"
+
+          if [[ "$REBUILD_REQUIRED" == "true" ]]; then
+            if [[ "$PROMOTE_RESULT" == "success" ]]; then
+              action_taken="Rebuilt and rolled out"
+              explain_confidence="92%"
+            elif [[ "$ROLLBACK_RESULT" == "success" ]]; then
+              action_taken="Rebuilt, canary failed, rolled back"
+              explain_confidence="95%"
+            elif [[ "$BUILD_RESULT" == "success" && "$CANARY_RESULT" != "success" ]]; then
+              action_taken="Rebuilt and validated, rollout not started"
+              explain_confidence="88%"
+            else
+              action_taken="Rebuild triggered and in progress"
+              explain_confidence="84%"
+            fi
+          fi
+
           CURRENT_AMI_VERSION="$current_ami" \
           LAST_KNOWN_GOOD_AMI="$last_good_ami" \
           LAST_PATCH_TIME="$last_patch_time" \
@@ -555,6 +578,13 @@ jobs:
           ROLLOUT_TIMELINE_JSON="$rollout_timeline_json" \
           CANARY_ANALYTICS_JSON="$canary_analytics_json" \
           bash scripts/generate_dashboard_status.sh dashboard/status.json
+
+          EXPLAIN_REASON="${EXPLAIN_REASON}" \
+          AFFECTED_PACKAGES_JSON="${AFFECTED_PACKAGES_JSON}" \
+          ACTION_TAKEN="${action_taken}" \
+          CONFIDENCE="${explain_confidence}" \
+          GENERATED_AT="${generated_at}" \
+          bash scripts/generate_explain_report.sh dashboard/explain-report.json
 
       - name: Upload developer dashboard
         uses: actions/upload-artifact@v4

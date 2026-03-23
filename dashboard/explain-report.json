@@ -1,0 +1,9 @@
+{
+  "reason": "CRITICAL CVE detected",
+  "affected_packages": [
+    "openssl"
+  ],
+  "action_taken": "Rebuilt and rolled out",
+  "confidence": "92%",
+  "generated_at": "2026-03-24T09:15:00Z"
+}

@@ -18,6 +18,7 @@ It gives you one reusable workflow to:
 - Automatic promotion on healthy rollout
 - Automatic rollback to the last known good version on failed rollout
 - A static dashboard artifact for infra health, lineage, rollout state, and canary confidence
+- An Explain Mode report that answers why the system changed infrastructure
 
 ## Why It Is Plug-and-Play
 
@@ -196,6 +197,23 @@ The dashboard in `dashboard/index.html` gives teams a lightweight infra health v
 - Canary success rate
 
 Each workflow run generates `dashboard/status.json` and uploads the whole `dashboard/` directory as the `openami-guard-dashboard` artifact. You can publish the same directory with GitHub Pages for an internal status page.
+
+## Explain Mode
+
+When a rebuild is triggered, OpenAMI Guard now generates `dashboard/explain-report.json` so teams can answer why infrastructure changed.
+
+Example:
+
+```json
+{
+  "reason": "CRITICAL CVE detected",
+  "affected_packages": ["openssl"],
+  "action_taken": "Rebuilt and rolled out",
+  "confidence": "92%"
+}
+```
+
+The report is built from the detector output and rollout outcome. It is designed for incident review, change visibility, and developer trust.
 
 ## Customization Points
 

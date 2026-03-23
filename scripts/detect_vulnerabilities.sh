@@ -34,6 +34,8 @@ if [[ -z "$current_ami" || "$current_ami" == "None" ]]; then
   echo "[WARN] No current AMI published yet. Rebuild required."
   echo "rebuild_required=true" >> "$GITHUB_OUTPUT"
   echo "reason=bootstrap-no-current-ami" >> "$GITHUB_OUTPUT"
+  echo "explain_reason=No current AMI was published yet" >> "$GITHUB_OUTPUT"
+  echo "affected_packages=[]" >> "$GITHUB_OUTPUT"
   exit 0
 fi
 
@@ -51,11 +53,14 @@ base_ami="$(aws ec2 describe-images \
 
 rebuild_required=false
 reason="none"
+explain_reason="No infra change required"
+affected_packages_json="[]"
 
 if [[ "$base_ami" != "$current_ami" ]]; then
   echo "[INFO] New upstream Ubuntu AMI detected: ${base_ami}"
   rebuild_required=true
   reason="new-base-ami"
+  explain_reason="New upstream base AMI detected"
 fi
 
 echo "[INFO] Querying Inspector findings since ${cutoff}"
@@ -83,12 +88,44 @@ matching_count="$(
   '
 )"
 
+affected_packages_json="$(
+  printf '%s' "$findings_json" | jq --arg ami "$current_ami" --arg cutoff "$cutoff" --argjson threshold "$severity_rank" '
+    [
+      .findings[]
+      | select(.resources[]?.details.awsEc2Instance?.imageId == $ami)
+      | select((.firstObservedAt // "") >= $cutoff)
+      | select(
+          (if .severity == "CRITICAL" then 4
+           elif .severity == "HIGH" then 3
+           elif .severity == "MEDIUM" then 2
+           elif .severity == "LOW" then 1
+           else 0 end) >= $threshold
+        )
+      | .packageVulnerabilityDetails.vulnerablePackages[]?.name
+    ] | unique
+  '
+)"
+
 echo "[INFO] Matching findings at or above ${SEVERITY_THRESHOLD}: ${matching_count}"
 
 if [[ "${matching_count}" != "0" ]]; then
   rebuild_required=true
   reason="inspector-findings"
+  if printf '%s' "$findings_json" | jq -e --arg ami "$current_ami" --arg cutoff "$cutoff" '
+    any(
+      .findings[];
+      any(.resources[]?; .details.awsEc2Instance?.imageId == $ami)
+      and (.firstObservedAt // "") >= $cutoff
+      and .severity == "CRITICAL"
+    )
+  ' >/dev/null; then
+    explain_reason="CRITICAL CVE detected"
+  else
+    explain_reason="${SEVERITY_THRESHOLD} severity vulnerability drift detected"
+  fi
 fi
 
 echo "rebuild_required=${rebuild_required}" >> "$GITHUB_OUTPUT"
 echo "reason=${reason}" >> "$GITHUB_OUTPUT"
+echo "explain_reason=${explain_reason}" >> "$GITHUB_OUTPUT"
+echo "affected_packages=${affected_packages_json}" >> "$GITHUB_OUTPUT"
