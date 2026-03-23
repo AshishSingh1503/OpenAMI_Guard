@@ -29,11 +29,40 @@ Most teams should only need to do three things:
 
 The workflow already handles detection, build, validation, rollout, rollback, and dashboard generation.
 
+## Config Layer
+
+`openami.yaml` is the primary product-level configuration file.
+
+```yaml
+system: openami-guard
+
+base_image:
+  type: ubuntu
+  version: 24.04
+
+security:
+  severity_threshold: HIGH
+
+rollout:
+  canary_percentage: 10
+  bake_time: 600
+
+notifications:
+  slack_webhook: ""
+```
+
+Why this matters:
+
+- It makes the project feel like a real tool instead of a loose collection of vars
+- New teams have a single place to start
+- The workflow UX is cleaner because common policy lives in one file
+
 ## Repository Structure
 
 ```text
 .
 |-- .github/workflows/self-healing-ami.yml
+|-- openami.yaml
 |-- dashboard/
 |   |-- index.html
 |   `-- status.json
@@ -49,6 +78,8 @@ The workflow already handles detection, build, validation, rollout, rollback, an
 |   |-- canary_rollout.sh
 |   |-- check_canary_health.sh
 |   |-- promote_ami.sh
+|   |-- load_openami_config.sh
+|   |-- render_openami_pkrvars.sh
 |   |-- generate_dashboard_status.sh
 |   `-- rollback_ami.sh
 `-- README.md
@@ -64,6 +95,16 @@ Keep the workflow file at `.github/workflows/self-healing-ami.yml` so GitHub Act
 
 Use the defaults in `variables.pkr.hcl` or create your own file from `team.auto.pkrvars.hcl.example`.
 
+### 3. Edit `openami.yaml`
+
+This is the main config file most teams should touch first.
+
+- Set `system` to your platform or team name
+- Choose the `base_image`
+- Set your security threshold
+- Tune rollout canary percentage and bake time
+- Leave `notifications.slack_webhook` blank in git if you plan to inject it securely later
+
 Example local build:
 
 ```bash
@@ -72,7 +113,7 @@ packer validate -var-file="team.auto.pkrvars.hcl" ubuntu.pkr.hcl
 packer build -var-file="team.auto.pkrvars.hcl" ubuntu.pkr.hcl
 ```
 
-### 3. Add GitHub Secrets
+### 4. Add GitHub Secrets
 
 - `AWS_ROLE_TO_ASSUME`
 - `TEST_SUBNET_ID`
@@ -82,9 +123,9 @@ packer build -var-file="team.auto.pkrvars.hcl" ubuntu.pkr.hcl
 - `AUTO_SCALING_GROUP_NAME`
 - `HEALTH_ALARM_NAME`
 
-### 4. Add GitHub Repository Variables
+### 5. Add GitHub Repository Variables
 
-These are the main plug-and-play knobs for each team:
+These are now secondary environment and infrastructure overrides. In most cases, `openami.yaml` should be your first stop and repo variables should hold environment-specific values.
 
 - `SYSTEM_NAME`
 - `AWS_REGION`
@@ -120,14 +161,14 @@ SOURCE_AMI_VIRTUALIZATION_TYPE=hvm
 SOURCE_AMI_ROOT_DEVICE_TYPE=ebs
 ```
 
-### 5. Create the backing SSM parameters
+### 6. Create the backing SSM parameters
 
 The workflow promotes the live AMI and stores rollback state in Parameter Store.
 
 - `AMI_PARAMETER_NAME`
 - `LAST_KNOWN_GOOD_PARAMETER_NAME`
 
-### 6. Run the workflow
+### 7. Run the workflow
 
 Use `workflow_dispatch` for the first run. After that, the scheduled trigger keeps your AMIs watched and refreshed.
 
@@ -163,6 +204,7 @@ Use this repo as a starter kit, then tailor the following to your platform:
 - `scripts/harden.sh` for CIS-style hardening, agent installation, and security baselines
 - `scripts/validate.sh` for image-level validation during build
 - `scripts/test_ami.sh` for runtime smoke tests and service assertions
+- `openami.yaml` for team-facing policy defaults
 - `team.auto.pkrvars.hcl` for team naming, sizing, KMS, and image-family defaults
 - Repository variables for region, rollout policy, and source image tracking
 

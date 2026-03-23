@@ -19,6 +19,7 @@ permissions:
   contents: read
 
 env:
+  OPENAMI_CONFIG_FILE: openami.yaml
   SYSTEM_NAME: ${{ vars.SYSTEM_NAME || 'OpenAMI Guard' }}
   AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
   AMI_PARAMETER_NAME: ${{ vars.AMI_PARAMETER_NAME || '/openami-guard/current_ami_id' }}
@@ -42,6 +43,9 @@ jobs:
       reason: ${{ steps.decide.outputs.reason }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Load OpenAMI config
+        run: bash scripts/load_openami_config.sh "${OPENAMI_CONFIG_FILE}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -77,6 +81,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Load OpenAMI config
+        run: bash scripts/load_openami_config.sh "${OPENAMI_CONFIG_FILE}"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -91,9 +98,10 @@ jobs:
 
       - name: Build AMI
         run: |
+          bash scripts/render_openami_pkrvars.sh .openami.generated.pkrvars.hcl
           packer init .
-          packer validate -var-file="${PACKER_VARIABLE_FILE}" "${PACKER_TEMPLATE_FILE}"
-          packer build -var-file="${PACKER_VARIABLE_FILE}" "${PACKER_TEMPLATE_FILE}"
+          packer validate -var-file="${PACKER_VARIABLE_FILE}" -var-file=".openami.generated.pkrvars.hcl" "${PACKER_TEMPLATE_FILE}"
+          packer build -var-file="${PACKER_VARIABLE_FILE}" -var-file=".openami.generated.pkrvars.hcl" "${PACKER_TEMPLATE_FILE}"
 
       - id: capture
         name: Capture AMI ID
@@ -107,6 +115,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Load OpenAMI config
+        run: bash scripts/load_openami_config.sh "${OPENAMI_CONFIG_FILE}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -131,6 +142,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Load OpenAMI config
+        run: bash scripts/load_openami_config.sh "${OPENAMI_CONFIG_FILE}"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -152,6 +166,9 @@ jobs:
       rollback_required: ${{ steps.check.outputs.rollback_required }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Load OpenAMI config
+        run: bash scripts/load_openami_config.sh "${OPENAMI_CONFIG_FILE}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -177,6 +194,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Load OpenAMI config
+        run: bash scripts/load_openami_config.sh "${OPENAMI_CONFIG_FILE}"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -195,6 +215,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Load OpenAMI config
+        run: bash scripts/load_openami_config.sh "${OPENAMI_CONFIG_FILE}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -216,6 +239,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Load OpenAMI config
+        run: bash scripts/load_openami_config.sh "${OPENAMI_CONFIG_FILE}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

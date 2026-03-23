@@ -1,0 +1,15 @@
+system: openami-guard
+
+base_image:
+  type: ubuntu
+  version: 24.04
+
+security:
+  severity_threshold: HIGH
+
+rollout:
+  canary_percentage: 10
+  bake_time: 600
+
+notifications:
+  slack_webhook: ""
