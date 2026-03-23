@@ -1,10 +1,114 @@
 {
-  "currentAmiVersion": "unknown",
-  "vulnerabilityStatus": "pending pipeline snapshot",
-  "lastPatchTime": "unknown",
-  "rolloutStatus": "idle",
-  "pipelineReason": "none",
-  "lastKnownGoodAmi": "unknown",
-  "canaryInstanceRefreshId": "n/a",
-  "generatedAt": "unknown"
+  "currentAmiVersion": "ami-0fedcba9876543210",
+  "vulnerabilityStatus": "healthy - no active rebuild trigger",
+  "lastPatchTime": "2026-03-22T21:15:00Z",
+  "rolloutStatus": "promoted",
+  "pipelineReason": "new-base-ami",
+  "lastKnownGoodAmi": "ami-0123456789abcdef0",
+  "canaryInstanceRefreshId": "ir-0cafe12345beef678",
+  "generatedAt": "2026-03-23T07:45:00Z",
+  "amiLineage": [
+    {
+      "amiId": "ami-0aaabbbccc1112223",
+      "label": "Base",
+      "status": "retired",
+      "createdAt": "2026-03-10T08:00:00Z",
+      "source": "ubuntu-24.04-lts"
+    },
+    {
+      "amiId": "ami-0123456789abcdef0",
+      "label": "Last known good",
+      "status": "stable",
+      "createdAt": "2026-03-17T11:40:00Z",
+      "source": "pipeline promotion"
+    },
+    {
+      "amiId": "ami-0fedcba9876543210",
+      "label": "Current",
+      "status": "current",
+      "createdAt": "2026-03-22T21:15:00Z",
+      "source": "pipeline promotion"
+    }
+  ],
+  "vulnerabilityTrends": [
+    {
+      "label": "Mar 18",
+      "critical": 1,
+      "high": 3,
+      "medium": 8
+    },
+    {
+      "label": "Mar 20",
+      "critical": 1,
+      "high": 2,
+      "medium": 7
+    },
+    {
+      "label": "Mar 22",
+      "critical": 0,
+      "high": 1,
+      "medium": 5
+    },
+    {
+      "label": "Mar 23",
+      "critical": 0,
+      "high": 0,
+      "medium": 4
+    }
+  ],
+  "rolloutTimeline": [
+    {
+      "step": "Detect drift",
+      "status": "completed",
+      "time": "2026-03-23T06:00:00Z",
+      "detail": "Inspector findings and upstream AMI drift triggered rebuild"
+    },
+    {
+      "step": "Build candidate",
+      "status": "completed",
+      "time": "2026-03-23T06:18:00Z",
+      "detail": "Packer baked ami-0fedcba9876543210"
+    },
+    {
+      "step": "Validate AMI",
+      "status": "completed",
+      "time": "2026-03-23T06:34:00Z",
+      "detail": "SSM validation suite passed"
+    },
+    {
+      "step": "Canary rollout",
+      "status": "completed",
+      "time": "2026-03-23T06:46:00Z",
+      "detail": "10% ASG refresh stayed healthy through bake window"
+    },
+    {
+      "step": "Promote release",
+      "status": "completed",
+      "time": "2026-03-23T07:05:00Z",
+      "detail": "AMI promoted to Parameter Store"
+    }
+  ],
+  "canaryAnalytics": {
+    "successRate": 100,
+    "successfulRuns": 4,
+    "totalRuns": 4,
+    "recentRuns": [
+      {
+        "label": "Mar 12",
+        "status": "success"
+      },
+      {
+        "label": "Mar 16",
+        "status": "success"
+      },
+      {
+        "label": "Mar 20",
+        "status": "success"
+      },
+      {
+        "label": "Mar 23",
+        "status": "success"
+      }
+    ]
+  }
 }

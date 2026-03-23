@@ -204,7 +204,7 @@ jobs:
         run: bash scripts/rollback_ami.sh
 
   dashboard:
-    needs: [detect, build, canary, evaluate, promote, rollback]
+    needs: [detect, build, test, canary, evaluate, promote, rollback]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -215,6 +215,9 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Generate dashboard snapshot
         env:
@@ -230,17 +233,294 @@ jobs:
           VULNERABILITY_STATUS: >-
             ${{ needs.detect.outputs.rebuild_required == 'true' && format('drift detected: {0}', needs.detect.outputs.reason)
               || 'healthy - no active rebuild trigger' }}
+          DETECT_RESULT: ${{ needs.detect.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          CANARY_RESULT: ${{ needs.canary.result }}
+          EVALUATE_RESULT: ${{ needs.evaluate.result }}
+          PROMOTE_RESULT: ${{ needs.promote.result }}
+          ROLLBACK_RESULT: ${{ needs.rollback.result }}
+          REBUILD_REQUIRED: ${{ needs.detect.outputs.rebuild_required || 'false' }}
+          BUILD_AMI_ID: ${{ needs.build.outputs.ami_id || '' }}
         run: |
+          generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           current_ami="$(aws ssm get-parameter --name "${AMI_PARAMETER_NAME}" --region "${AWS_REGION}" --query 'Parameter.Value' --output text 2>/dev/null || echo unknown)"
           last_good_ami="$(aws ssm get-parameter --name "${LAST_KNOWN_GOOD_PARAMETER_NAME}" --region "${AWS_REGION}" --query 'Parameter.Value' --output text 2>/dev/null || echo unknown)"
-          if [[ "${{ needs.promote.result }}" == "success" ]]; then
-            last_patch_time="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          else
-            last_patch_time="$(aws ec2 describe-images --image-ids "$current_ami" --region "${AWS_REGION}" --query 'Images[0].CreationDate' --output text 2>/dev/null || echo unknown)"
+
+          image_date() {
+            local ami_id="$1"
+            if [[ -z "$ami_id" || "$ami_id" == "unknown" || "$ami_id" == "n/a" ]]; then
+              echo "unknown"
+              return
+            fi
+
+            aws ec2 describe-images \
+              --image-ids "$ami_id" \
+              --region "${AWS_REGION}" \
+              --query 'Images[0].CreationDate' \
+              --output text 2>/dev/null || echo "unknown"
+          }
+
+          current_created="$(image_date "$current_ami")"
+          last_good_created="$(image_date "$last_good_ami")"
+          candidate_ami="${BUILD_AMI_ID}"
+          if [[ -z "$candidate_ami" ]]; then
+            candidate_ami="$current_ami"
           fi
+          candidate_created="$(image_date "$candidate_ami")"
+
+          if [[ "${PROMOTE_RESULT}" == "success" ]]; then
+            last_patch_time="${generated_at}"
+          else
+            last_patch_time="${current_created}"
+          fi
+
+          findings_json="$(aws inspector2 list-findings \
+            --region "${AWS_REGION}" \
+            --filter-criteria '{
+              "findingStatus": [{"comparison": "EQUALS", "value": "ACTIVE"}],
+              "resourceType": [{"comparison": "EQUALS", "value": "AWS_EC2_INSTANCE"}]
+            }' \
+            --max-results 100 2>/dev/null || echo '{"findings":[]}' )"
+
+          severity_count() {
+            local ami_id="$1"
+            local severity="$2"
+            if [[ -z "$ami_id" || "$ami_id" == "unknown" || "$ami_id" == "n/a" ]]; then
+              echo 0
+              return
+            fi
+
+            printf '%s' "$findings_json" | jq --arg ami "$ami_id" --arg severity "$severity" '
+              [.findings[]
+                | select(.severity == $severity)
+                | select(any(.resources[]?; .details.awsEc2Instance?.imageId == $ami))
+              ] | length
+            '
+          }
+
+          current_critical="$(severity_count "$current_ami" "CRITICAL")"
+          current_high="$(severity_count "$current_ami" "HIGH")"
+          current_medium="$(severity_count "$current_ami" "MEDIUM")"
+          candidate_critical="$(severity_count "$candidate_ami" "CRITICAL")"
+          candidate_high="$(severity_count "$candidate_ami" "HIGH")"
+          candidate_medium="$(severity_count "$candidate_ami" "MEDIUM")"
+
+          rollout_phase_status() {
+            local result="$1"
+            case "$result" in
+              success) echo "completed" ;;
+              failure|cancelled) echo "failed" ;;
+              skipped)
+                echo "pending"
+                ;;
+              *)
+                echo "pending"
+                ;;
+            esac
+          }
+
+          detect_status="completed"
+          build_status="$(rollout_phase_status "$BUILD_RESULT")"
+          test_status="$(rollout_phase_status "$TEST_RESULT")"
+          canary_status="$(rollout_phase_status "$CANARY_RESULT")"
+          final_status="pending"
+          final_step="Awaiting next action"
+          final_detail="No promotion or rollback action was recorded in this run."
+
+          if [[ "$PROMOTE_RESULT" == "success" ]]; then
+            final_status="completed"
+            final_step="Promote release"
+            final_detail="AMI promoted to Parameter Store."
+          elif [[ "$ROLLBACK_RESULT" == "success" ]]; then
+            final_status="failed"
+            final_step="Rollback release"
+            final_detail="Canary health failed and the launch template was reverted."
+          elif [[ "$CANARY_RESULT" == "success" ]]; then
+            final_status="active"
+            final_step="Evaluate canary"
+            final_detail="Canary rollout started and is awaiting or completing health checks."
+          elif [[ "$REBUILD_REQUIRED" == "false" ]]; then
+            final_status="completed"
+            final_step="No rollout required"
+            final_detail="Detection finished without a rebuild trigger."
+          fi
+
+          ami_lineage_json="$(
+            jq -n \
+              --arg last_good_ami "$last_good_ami" \
+              --arg last_good_created "$last_good_created" \
+              --arg current_ami "$current_ami" \
+              --arg current_created "$current_created" \
+              --arg candidate_ami "$candidate_ami" \
+              --arg candidate_created "$candidate_created" \
+              --arg promote_result "$PROMOTE_RESULT" \
+              '
+              [
+                if ($last_good_ami != "unknown" and $last_good_ami != "n/a" and $last_good_ami != "") then
+                  {
+                    amiId: $last_good_ami,
+                    label: "Last known good",
+                    status: "stable",
+                    createdAt: $last_good_created,
+                    source: "parameter store"
+                  }
+                else empty end,
+                if ($current_ami != "unknown" and $current_ami != "n/a" and $current_ami != "") then
+                  {
+                    amiId: $current_ami,
+                    label: "Current published",
+                    status: (if $promote_result == "success" then "current" else "active" end),
+                    createdAt: $current_created,
+                    source: "published fleet"
+                  }
+                else empty end,
+                if ($candidate_ami != "" and $candidate_ami != "unknown" and $candidate_ami != $current_ami) then
+                  {
+                    amiId: $candidate_ami,
+                    label: "Candidate build",
+                    status: "candidate",
+                    createdAt: $candidate_created,
+                    source: "packer build"
+                  }
+                else empty end
+              ]
+              '
+          )"
+
+          vulnerability_trends_json="$(
+            jq -n \
+              --arg current_date "${generated_at%%T*}" \
+              --arg candidate_label "$( [[ -n "${BUILD_AMI_ID}" ]] && echo "Candidate" || echo "Published" )" \
+              --argjson current_critical "$current_critical" \
+              --argjson current_high "$current_high" \
+              --argjson current_medium "$current_medium" \
+              --argjson candidate_critical "$candidate_critical" \
+              --argjson candidate_high "$candidate_high" \
+              --argjson candidate_medium "$candidate_medium" \
+              '
+              [
+                {
+                  label: "Published",
+                  critical: $current_critical,
+                  high: $current_high,
+                  medium: $current_medium
+                },
+                {
+                  label: $candidate_label,
+                  critical: $candidate_critical,
+                  high: $candidate_high,
+                  medium: $candidate_medium
+                },
+                {
+                  label: $current_date,
+                  critical: $candidate_critical,
+                  high: $candidate_high,
+                  medium: $candidate_medium
+                }
+              ]
+              '
+          )"
+
+          rollout_timeline_json="$(
+            jq -n \
+              --arg generated_at "$generated_at" \
+              --arg pipeline_reason "$PIPELINE_REASON" \
+              --arg detect_status "$detect_status" \
+              --arg build_status "$build_status" \
+              --arg test_status "$test_status" \
+              --arg canary_status "$canary_status" \
+              --arg final_status "$final_status" \
+              --arg candidate_ami "$candidate_ami" \
+              --arg canary_refresh_id "$CANARY_INSTANCE_REFRESH_ID" \
+              --arg final_step "$final_step" \
+              --arg final_detail "$final_detail" \
+              '
+              [
+                {
+                  step: "Detect drift",
+                  status: $detect_status,
+                  time: $generated_at,
+                  detail: ("Decision reason: " + $pipeline_reason)
+                },
+                {
+                  step: "Build candidate",
+                  status: $build_status,
+                  time: $generated_at,
+                  detail: ("Candidate AMI: " + $candidate_ami)
+                },
+                {
+                  step: "Validate AMI",
+                  status: $test_status,
+                  time: $generated_at,
+                  detail: "SSM validation and hardening checks"
+                },
+                {
+                  step: "Canary rollout",
+                  status: $canary_status,
+                  time: $generated_at,
+                  detail: ("Instance refresh: " + $canary_refresh_id)
+                },
+                {
+                  step: $final_step,
+                  status: $final_status,
+                  time: $generated_at,
+                  detail: $final_detail
+                }
+              ]
+              '
+          )"
+
+          successful_runs=0
+          total_runs=0
+          canary_success_rate="null"
+          recent_run_status="not-started"
+
+          if [[ "$CANARY_RESULT" == "success" ]]; then
+            total_runs=1
+            if [[ "$ROLLBACK_RESULT" == "success" ]]; then
+              recent_run_status="rollback"
+              canary_success_rate=0
+            elif [[ "$PROMOTE_RESULT" == "success" || "$EVALUATE_RESULT" == "success" ]]; then
+              recent_run_status="success"
+              successful_runs=1
+              canary_success_rate=100
+            else
+              recent_run_status="in-progress"
+            fi
+          fi
+
+          canary_analytics_json="$(
+            jq -n \
+              --arg run_label "${generated_at%%T*}" \
+              --arg recent_run_status "$recent_run_status" \
+              --argjson successful_runs "$successful_runs" \
+              --argjson total_runs "$total_runs" \
+              --argjson success_rate "$canary_success_rate" \
+              '
+              {
+                successRate: $success_rate,
+                successfulRuns: $successful_runs,
+                totalRuns: $total_runs,
+                recentRuns: (
+                  if $total_runs > 0 then
+                    [{ label: $run_label, status: $recent_run_status }]
+                  else
+                    []
+                  end
+                )
+              }
+              '
+          )"
+
           CURRENT_AMI_VERSION="$current_ami" \
           LAST_KNOWN_GOOD_AMI="$last_good_ami" \
           LAST_PATCH_TIME="$last_patch_time" \
+          GENERATED_AT="$generated_at" \
+          AMI_LINEAGE_JSON="$ami_lineage_json" \
+          VULNERABILITY_TRENDS_JSON="$vulnerability_trends_json" \
+          ROLLOUT_TIMELINE_JSON="$rollout_timeline_json" \
+          CANARY_ANALYTICS_JSON="$canary_analytics_json" \
           bash scripts/generate_dashboard_status.sh dashboard/status.json
 
       - name: Upload developer dashboard

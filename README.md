@@ -55,7 +55,7 @@ The Packer build writes `manifest.json`, which the GitHub Actions workflow uses 
 4. Update the Auto Scaling Group to a new launch template version and start a canary instance refresh.
 5. Check a CloudWatch alarm after the canary bake window.
 6. Promote the AMI to SSM Parameter Store if healthy, or roll back automatically if unhealthy.
-7. Generate a developer dashboard snapshot showing the current AMI version, vulnerability status, last patch time, and rollout status.
+7. Generate a developer dashboard snapshot showing the current AMI version, AMI lineage, vulnerability trends, rollout timeline, canary success rate, and rollout status.
 
 ## Developer Dashboard
 
@@ -65,6 +65,10 @@ The repo now includes a lightweight dashboard in `dashboard/index.html`.
 - Vulnerability status
 - Last patch time
 - Rollout status
+- AMI lineage history
+- Vulnerability trend snapshots
+- Rollout timeline
+- Canary success rate
 
 Each workflow run generates `dashboard/status.json` and uploads the whole `dashboard/` directory as the `ami-developer-dashboard` artifact. You can also publish the same directory with GitHub Pages for a persistent internal status page.
 

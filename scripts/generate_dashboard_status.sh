@@ -12,6 +12,10 @@ PIPELINE_REASON="${PIPELINE_REASON:-none}"
 LAST_KNOWN_GOOD_AMI="${LAST_KNOWN_GOOD_AMI:-unknown}"
 CANARY_INSTANCE_REFRESH_ID="${CANARY_INSTANCE_REFRESH_ID:-n/a}"
 GENERATED_AT="${GENERATED_AT:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
+AMI_LINEAGE_JSON="${AMI_LINEAGE_JSON:-[]}"
+VULNERABILITY_TRENDS_JSON="${VULNERABILITY_TRENDS_JSON:-[]}"
+ROLLOUT_TIMELINE_JSON="${ROLLOUT_TIMELINE_JSON:-[]}"
+CANARY_ANALYTICS_JSON="${CANARY_ANALYTICS_JSON:-{\"successRate\":null,\"successfulRuns\":0,\"totalRuns\":0,\"recentRuns\":[]}}"
 
 cat > "$OUTPUT_PATH" <<EOF
 {
@@ -22,7 +26,11 @@ cat > "$OUTPUT_PATH" <<EOF
   "pipelineReason": "${PIPELINE_REASON}",
   "lastKnownGoodAmi": "${LAST_KNOWN_GOOD_AMI}",
   "canaryInstanceRefreshId": "${CANARY_INSTANCE_REFRESH_ID}",
-  "generatedAt": "${GENERATED_AT}"
+  "generatedAt": "${GENERATED_AT}",
+  "amiLineage": ${AMI_LINEAGE_JSON},
+  "vulnerabilityTrends": ${VULNERABILITY_TRENDS_JSON},
+  "rolloutTimeline": ${ROLLOUT_TIMELINE_JSON},
+  "canaryAnalytics": ${CANARY_ANALYTICS_JSON}
 }
 EOF
 
