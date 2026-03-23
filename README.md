@@ -8,6 +8,7 @@ It gives you one reusable workflow to:
 - Keep published AMIs patched continuously by watching for drift and findings
 - Deploy updates safely with canary rollout and rollback
 - Give developers and operators visibility into AMI and rollout health
+- Operate the system through a simple `openami` CLI
 
 ## What You Get
 
@@ -63,6 +64,9 @@ Why this matters:
 ```text
 .
 |-- .github/workflows/self-healing-ami.yml
+|-- openami
+|-- openami.cmd
+|-- openami.py
 |-- openami.yaml
 |-- dashboard/
 |   |-- index.html
@@ -172,6 +176,39 @@ The workflow promotes the live AMI and stores rollback state in Parameter Store.
 ### 7. Run the workflow
 
 Use `workflow_dispatch` for the first run. After that, the scheduled trigger keeps your AMIs watched and refreshed.
+
+## CLI
+
+OpenAMI Guard now ships with a lightweight CLI so the repo behaves like a tool.
+
+Commands:
+
+```bash
+openami status
+openami rebuild
+openami rollout
+```
+
+What they do:
+
+- `openami status` reads `openami.yaml`, `dashboard/status.json`, and `dashboard/explain-report.json`
+- `openami rebuild` triggers the GitHub Actions workflow with `force_rebuild=true`
+- `openami rollout` triggers the standard rollout workflow, with an optional forced rebuild
+
+Examples:
+
+```bash
+openami status
+openami rebuild --skip-rollout
+openami rollout
+openami rollout --force-rebuild
+```
+
+Notes:
+
+- On Windows, use `openami.cmd` or ensure the repo root is on `PATH`
+- `openami rebuild` and `openami rollout` require GitHub CLI (`gh`) plus `gh auth login`
+- `openami status` works locally without GitHub CLI
 
 ## Workflow Lifecycle
 

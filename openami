@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+python "$(cd "$(dirname "$0")" && pwd)/openami.py" "$@"
