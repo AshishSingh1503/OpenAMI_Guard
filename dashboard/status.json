@@ -1,4 +1,5 @@
 {
+  "systemName": "OpenAMI Guard",
   "currentAmiVersion": "ami-0fedcba9876543210",
   "vulnerabilityStatus": "healthy - no active rebuild trigger",
   "lastPatchTime": "2026-03-22T21:15:00Z",

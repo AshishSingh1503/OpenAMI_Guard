@@ -1,0 +1,11 @@
+region                  = "us-east-1"
+pipeline_name           = "platform-ami-guard"
+image_name              = "platform-base-ubuntu24"
+instance_type           = "t3.small"
+ami_name_prefix         = "platform-ubuntu24"
+ami_description         = "Hardened Ubuntu 24.04 AMI maintained by OpenAMI Guard"
+source_ami_name_pattern = "ubuntu/images/hvm-ssd/ubuntu-*-24.04-amd64-server-*"
+source_ami_owner        = "099720109477"
+source_ami_ssh_username = "ubuntu"
+kms_key_id              = "alias/aws/ebs"
+volume_size             = 20

@@ -1,4 +1,4 @@
-name: Intelligent Self-Healing AMI Pipeline
+name: OpenAMI Guard
 
 on:
   workflow_dispatch:
@@ -19,13 +19,20 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: ap-south-1
-  AMI_PARAMETER_NAME: /golden/ubuntu24/ami_id
-  LAST_KNOWN_GOOD_PARAMETER_NAME: /golden/ubuntu24/last_known_good_ami_id
-  CANARY_PERCENTAGE: "10"
-  INSTANCE_WARMUP: "180"
-  BAKE_TIME_SECONDS: "600"
-  SEVERITY_THRESHOLD: HIGH
+  SYSTEM_NAME: ${{ vars.SYSTEM_NAME || 'OpenAMI Guard' }}
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+  AMI_PARAMETER_NAME: ${{ vars.AMI_PARAMETER_NAME || '/openami-guard/current_ami_id' }}
+  LAST_KNOWN_GOOD_PARAMETER_NAME: ${{ vars.LAST_KNOWN_GOOD_PARAMETER_NAME || '/openami-guard/last_known_good_ami_id' }}
+  CANARY_PERCENTAGE: ${{ vars.CANARY_PERCENTAGE || '10' }}
+  INSTANCE_WARMUP: ${{ vars.INSTANCE_WARMUP || '180' }}
+  BAKE_TIME_SECONDS: ${{ vars.BAKE_TIME_SECONDS || '600' }}
+  SEVERITY_THRESHOLD: ${{ vars.SEVERITY_THRESHOLD || 'HIGH' }}
+  PACKER_TEMPLATE_FILE: ${{ vars.PACKER_TEMPLATE_FILE || 'ubuntu.pkr.hcl' }}
+  PACKER_VARIABLE_FILE: ${{ vars.PACKER_VARIABLE_FILE || 'variables.pkr.hcl' }}
+  SOURCE_AMI_NAME_PATTERN: ${{ vars.SOURCE_AMI_NAME_PATTERN || 'ubuntu/images/hvm-ssd/ubuntu-*-24.04-amd64-server-*' }}
+  SOURCE_AMI_OWNER: ${{ vars.SOURCE_AMI_OWNER || '099720109477' }}
+  SOURCE_AMI_VIRTUALIZATION_TYPE: ${{ vars.SOURCE_AMI_VIRTUALIZATION_TYPE || 'hvm' }}
+  SOURCE_AMI_ROOT_DEVICE_TYPE: ${{ vars.SOURCE_AMI_ROOT_DEVICE_TYPE || 'ebs' }}
 
 jobs:
   detect:
@@ -85,8 +92,8 @@ jobs:
       - name: Build AMI
         run: |
           packer init .
-          packer validate -var-file=variables.pkr.hcl ubuntu.pkr.hcl
-          packer build -var-file=variables.pkr.hcl ubuntu.pkr.hcl
+          packer validate -var-file="${PACKER_VARIABLE_FILE}" "${PACKER_TEMPLATE_FILE}"
+          packer build -var-file="${PACKER_VARIABLE_FILE}" "${PACKER_TEMPLATE_FILE}"
 
       - id: capture
         name: Capture AMI ID
@@ -526,5 +533,5 @@ jobs:
       - name: Upload developer dashboard
         uses: actions/upload-artifact@v4
         with:
-          name: ami-developer-dashboard
+          name: openami-guard-dashboard
           path: dashboard

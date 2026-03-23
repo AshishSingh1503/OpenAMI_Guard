@@ -4,6 +4,7 @@ set -euo pipefail
 OUTPUT_PATH="${1:-dashboard/status.json}"
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 
+SYSTEM_NAME="${SYSTEM_NAME:-OpenAMI Guard}"
 CURRENT_AMI_VERSION="${CURRENT_AMI_VERSION:-unknown}"
 VULNERABILITY_STATUS="${VULNERABILITY_STATUS:-unknown}"
 LAST_PATCH_TIME="${LAST_PATCH_TIME:-unknown}"
@@ -19,6 +20,7 @@ CANARY_ANALYTICS_JSON="${CANARY_ANALYTICS_JSON:-{\"successRate\":null,\"successf
 
 cat > "$OUTPUT_PATH" <<EOF
 {
+  "systemName": "${SYSTEM_NAME}",
   "currentAmiVersion": "${CURRENT_AMI_VERSION}",
   "vulnerabilityStatus": "${VULNERABILITY_STATUS}",
   "lastPatchTime": "${LAST_PATCH_TIME}",

@@ -3,8 +3,12 @@ set -euo pipefail
 
 SEVERITY_THRESHOLD="${SEVERITY_THRESHOLD:-HIGH}"
 LOOKBACK_DAYS="${LOOKBACK_DAYS:-7}"
-AMI_PARAMETER_NAME="${AMI_PARAMETER_NAME:-/golden/ubuntu24/ami_id}"
+AMI_PARAMETER_NAME="${AMI_PARAMETER_NAME:-/openami-guard/current_ami_id}"
 REGION="${AWS_REGION:-ap-south-1}"
+SOURCE_AMI_NAME_PATTERN="${SOURCE_AMI_NAME_PATTERN:-ubuntu/images/hvm-ssd/ubuntu-*-24.04-amd64-server-*}"
+SOURCE_AMI_OWNER="${SOURCE_AMI_OWNER:-099720109477}"
+SOURCE_AMI_VIRTUALIZATION_TYPE="${SOURCE_AMI_VIRTUALIZATION_TYPE:-hvm}"
+SOURCE_AMI_ROOT_DEVICE_TYPE="${SOURCE_AMI_ROOT_DEVICE_TYPE:-ebs}"
 
 threshold_rank() {
   case "$1" in
@@ -36,12 +40,12 @@ fi
 echo "[INFO] Current AMI: ${current_ami}"
 
 base_ami="$(aws ec2 describe-images \
-  --owners 099720109477 \
+  --owners "$SOURCE_AMI_OWNER" \
   --region "$REGION" \
   --filters \
-    'Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-24.04-amd64-server-*' \
-    'Name=virtualization-type,Values=hvm' \
-    'Name=root-device-type,Values=ebs' \
+    "Name=name,Values=${SOURCE_AMI_NAME_PATTERN}" \
+    "Name=virtualization-type,Values=${SOURCE_AMI_VIRTUALIZATION_TYPE}" \
+    "Name=root-device-type,Values=${SOURCE_AMI_ROOT_DEVICE_TYPE}" \
   --query 'sort_by(Images,&CreationDate)[-1].ImageId' \
   --output text)"
 

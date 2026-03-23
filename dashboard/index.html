@@ -527,9 +527,9 @@
 <body>
   <main class="shell">
     <section class="hero">
-      <p class="eyebrow">Developer Dashboard</p>
-      <h1>Intelligent Self-Healing AMI Pipeline</h1>
-      <p class="subtitle">Track the currently published AMI, vulnerability posture, lineage, and rollout health without digging through workflow logs.</p>
+      <p class="eyebrow">Plug-and-Play AMI Operations</p>
+      <h1 id="systemName">OpenAMI Guard</h1>
+      <p class="subtitle">A reusable AMI security and rollout system for teams that need continuous patching, safe deployments, rollback, and infra health visibility.</p>
     </section>
 
     <section class="grid">
@@ -620,6 +620,7 @@
         <p class="label">Snapshot Metadata</p>
         <ul class="detail-list">
           <li><span>Generated At</span><strong id="generatedAt">Loading...</strong></li>
+          <li><span>System</span><strong id="systemNameMeta">Loading...</strong></li>
           <li><span>Mode</span><strong>Static UI + generated pipeline snapshot</strong></li>
           <li><span>History Retention</span><strong>Best effort from current workflow context</strong></li>
         </ul>
@@ -768,6 +769,8 @@
       .then((response) => response.json())
       .then((data) => {
         setText("currentAmiVersion", data.currentAmiVersion);
+        setText("systemName", data.systemName || "OpenAMI Guard");
+        setText("systemNameMeta", data.systemName || "OpenAMI Guard");
         setText("vulnerabilityStatus", data.vulnerabilityStatus);
         setText("lastPatchTime", data.lastPatchTime);
         setText("rolloutStatus", data.rolloutStatus);
@@ -784,6 +787,8 @@
       })
       .catch(() => {
         setText("currentAmiVersion", "Unavailable");
+        setText("systemName", "OpenAMI Guard");
+        setText("systemNameMeta", "Snapshot missing");
         setText("vulnerabilityStatus", "Snapshot missing");
         setText("lastPatchTime", "Snapshot missing");
         setText("rolloutStatus", "Snapshot missing");

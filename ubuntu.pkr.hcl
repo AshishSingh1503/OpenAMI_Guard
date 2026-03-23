@@ -11,24 +11,24 @@ source "amazon-ebs" "ubuntu" {
   region                  = var.region
   source_ami_filter {
     filters = {
-      name = "ubuntu/images/hvm-ssd/ubuntu-*-24.04-amd64-server-*"
-      virtualization-type = "hvm"
-      root-device-type    = "ebs"
+      name                = var.source_ami_name_pattern
+      virtualization-type = var.source_ami_virtualization_type
+      root-device-type    = var.source_ami_root_device_type
     }
     most_recent = true
-    owners      = ["099720109477"] # Canonical
+    owners      = [var.source_ami_owner]
   }
   instance_type           = var.instance_type
-  ssh_username            = "ubuntu"
+  ssh_username            = var.source_ami_ssh_username
   ami_name                = "${var.ami_name_prefix}-{{timestamp}}"
   ami_description         = var.ami_description
   encrypt_boot            = true
   kms_key_id              = var.kms_key_id
   tags = {
-    "Name"      = "GoldenUbuntu24"
+    "Name"      = var.image_name
     "CreatedBy" = "Packer"
     "Version"   = "{{timestamp}}"
-    "Pipeline"  = "self-healing-ami"
+    "Pipeline"  = var.pipeline_name
   }
 
   metadata_options {

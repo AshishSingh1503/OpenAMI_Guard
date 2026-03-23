@@ -3,8 +3,8 @@ set -euo pipefail
 
 AMI_ID="${1:?usage: promote_ami.sh <ami-id>}"
 REGION="${AWS_REGION:-ap-south-1}"
-AMI_PARAMETER_NAME="${AMI_PARAMETER_NAME:-/golden/ubuntu24/ami_id}"
-LAST_KNOWN_GOOD_PARAMETER_NAME="${LAST_KNOWN_GOOD_PARAMETER_NAME:-/golden/ubuntu24/last_known_good_ami_id}"
+AMI_PARAMETER_NAME="${AMI_PARAMETER_NAME:-/openami-guard/current_ami_id}"
+LAST_KNOWN_GOOD_PARAMETER_NAME="${LAST_KNOWN_GOOD_PARAMETER_NAME:-/openami-guard/last_known_good_ami_id}"
 INSTANCE_REFRESH_ID="${INSTANCE_REFRESH_ID:?INSTANCE_REFRESH_ID is required}"
 AUTO_SCALING_GROUP_NAME="${AUTO_SCALING_GROUP_NAME:?AUTO_SCALING_GROUP_NAME is required}"
 
