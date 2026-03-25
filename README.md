@@ -248,14 +248,17 @@ Example:
 
 ```json
 {
-  "reason": "CRITICAL CVE detected",
+  "previous_score": 78,
+  "new_score": 92,
+  "delta": "+14",
+  "reason": "Patched OpenSSL CVE",
   "affected_packages": ["openssl"],
   "action_taken": "Rebuilt and rolled out",
   "confidence": "92%"
 }
 ```
 
-The report is built from the detector output and rollout outcome. It is designed for incident review, change visibility, and developer trust.
+The report is built from the detector output and rollout outcome. It is designed for incident review, change visibility, developer trust, and quick risk score comparisons between AMI versions.
 
 ## Customization Points
 

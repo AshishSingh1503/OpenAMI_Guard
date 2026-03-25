@@ -1,5 +1,8 @@
 {
-  "reason": "CRITICAL CVE detected",
+  "previous_score": 78,
+  "new_score": 92,
+  "delta": "+14",
+  "reason": "Patched OpenSSL CVE",
   "affected_packages": [
     "openssl"
   ],

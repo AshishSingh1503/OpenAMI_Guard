@@ -88,6 +88,36 @@ def normalize_int(value: object, default: int = 0) -> int:
     return default
 
 
+def explain_packages(explain: dict) -> str:
+    packages = explain.get("affected_packages", [])
+    if isinstance(packages, list):
+        normalized = [normalize_text(item, "") for item in packages]
+        filtered = [item for item in normalized if item]
+        return ", ".join(filtered) if filtered else "none"
+    return normalize_text(packages, "none")
+
+
+def print_explain_mode(explain: dict) -> None:
+    print("Explain mode")
+    print("------------")
+    print_kv("Reason", explain.get("reason", "unknown"))
+    print_kv("Affected packages", explain_packages(explain))
+    print_kv("Action taken", explain.get("action_taken", "unknown"))
+    print_kv("Confidence", explain.get("confidence", "unknown"))
+
+    has_risk_trend = any(
+        key in explain
+        for key in ("previous_score", "new_score", "delta")
+    )
+    if has_risk_trend:
+        print()
+        print("Risk score trend")
+        print("----------------")
+        print_kv("Previous score", explain.get("previous_score", "unknown"))
+        print_kv("New score", explain.get("new_score", "unknown"))
+        print_kv("Delta", explain.get("delta", "unknown"))
+
+
 def parse_timestamp(value: object) -> datetime | None:
     if not value:
         return None
@@ -299,12 +329,7 @@ def command_status(_: argparse.Namespace) -> int:
     print_lineage_intelligence(status)
 
     if explain:
-        print("Explain mode")
-        print("------------")
-        print_kv("Reason", explain.get("reason", "unknown"))
-        print_kv("Affected packages", ", ".join(explain.get("affected_packages", [])) or "none")
-        print_kv("Action taken", explain.get("action_taken", "unknown"))
-        print_kv("Confidence", explain.get("confidence", "unknown"))
+        print_explain_mode(explain)
     else:
         print("No explain report found at dashboard/explain-report.json")
 
