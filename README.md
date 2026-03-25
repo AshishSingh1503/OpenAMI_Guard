@@ -19,6 +19,7 @@ It gives you one reusable workflow to:
 - Automatic promotion on healthy rollout
 - Automatic rollback to the last known good version on failed rollout
 - A static dashboard artifact for infra health, lineage, rollout state, and canary confidence
+- AMI lineage intelligence for incident attribution, stability, and patch cadence
 - An Explain Mode report that answers why the system changed infrastructure
 
 ## Why It Is Plug-and-Play
@@ -185,6 +186,7 @@ Commands:
 
 ```bash
 openami status
+openami lineage
 openami rebuild
 openami rollout
 ```
@@ -192,6 +194,7 @@ openami rollout
 What they do:
 
 - `openami status` reads `openami.yaml`, `dashboard/status.json`, and `dashboard/explain-report.json`
+- `openami lineage` answers which AMIs caused incidents, which one is most stable, and how often patching happens
 - `openami rebuild` triggers the GitHub Actions workflow with `force_rebuild=true`
 - `openami rollout` triggers the standard rollout workflow, with an optional forced rebuild
 
@@ -199,6 +202,7 @@ Examples:
 
 ```bash
 openami status
+openami lineage
 openami rebuild --skip-rollout
 openami rollout
 openami rollout --force-rebuild
@@ -229,6 +233,7 @@ The dashboard in `dashboard/index.html` gives teams a lightweight infra health v
 - Last patch time
 - Rollout status
 - AMI lineage history
+- AMI lineage intelligence
 - Vulnerability trend snapshots
 - Rollout timeline
 - Canary success rate

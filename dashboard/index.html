@@ -564,6 +564,16 @@
       </article>
 
       <article class="card wide">
+        <h2 class="section-title">AMI Lineage Intelligence</h2>
+        <p class="section-copy">Summarized answers from tracked AMI version history, rollback outcomes, and deployment cadence.</p>
+        <ul class="detail-list">
+          <li><span>AMI(s) causing incidents</span><strong id="incidentAmis">Loading...</strong></li>
+          <li><span>Most stable AMI</span><strong id="mostStableAmi">Loading...</strong></li>
+          <li><span>Patching frequency</span><strong id="patchFrequency">Loading...</strong></li>
+        </ul>
+      </article>
+
+      <article class="card wide">
         <h2 class="section-title">Vulnerability Trends</h2>
         <p class="section-copy">Recent severity counts help us see whether the image posture is improving between rebuilds.</p>
         <div id="vulnerabilityTrends" class="trend-chart"></div>
@@ -765,6 +775,13 @@
       `).join("");
     };
 
+    const renderLineageIntelligence = (intelligence = {}) => {
+      const incidentAmis = intelligence.incident_amis || intelligence.incidentAmis || [];
+      setText("incidentAmis", incidentAmis.length ? incidentAmis.join(", ") : "none tracked");
+      setText("mostStableAmi", intelligence.most_stable_ami || intelligence.mostStableAmi || "unknown");
+      setText("patchFrequency", intelligence.patch_frequency || intelligence.patchFrequency || "unknown");
+    };
+
     fetch("./status.json", { cache: "no-store" })
       .then((response) => response.json())
       .then((data) => {
@@ -781,6 +798,7 @@
         setBadge("vulnerabilityBadge", data.vulnerabilityStatus, vulnerabilityKind(data.vulnerabilityStatus));
         setBadge("rolloutBadge", data.rolloutStatus, rolloutKind(data.rolloutStatus));
         renderLineage(data.amiLineage);
+        renderLineageIntelligence(data.amiLineageIntelligence);
         renderTrends(data.vulnerabilityTrends);
         renderTimeline(data.rolloutTimeline);
         renderCanaryAnalytics(data.canaryAnalytics);
@@ -796,6 +814,9 @@
         setText("lastKnownGoodAmi", "Snapshot missing");
         setText("canaryInstanceRefreshId", "Snapshot missing");
         setText("generatedAt", "Snapshot missing");
+        setText("incidentAmis", "Snapshot missing");
+        setText("mostStableAmi", "Snapshot missing");
+        setText("patchFrequency", "Snapshot missing");
         setBadge("vulnerabilityBadge", "Snapshot missing", "warn");
         setBadge("rolloutBadge", "Snapshot missing", "warn");
         renderLineage([]);

@@ -31,6 +31,37 @@
       "source": "pipeline promotion"
     }
   ],
+  "amiLineageIntelligence": {
+    "history": [
+      {
+        "ami_version": "v1.2.1",
+        "parent_ami": "v1.2.0",
+        "change_reason": "kernel hardening",
+        "deployment_status": "rollback after incident",
+        "rollback_count": 1,
+        "deployed_at": "2026-03-10T08:00:00Z"
+      },
+      {
+        "ami_version": "v1.2.2",
+        "parent_ami": "v1.2.1",
+        "change_reason": "package refresh",
+        "deployment_status": "healthy",
+        "rollback_count": 0,
+        "deployed_at": "2026-03-17T11:40:00Z"
+      },
+      {
+        "ami_version": "v1.2.3",
+        "parent_ami": "v1.2.2",
+        "change_reason": "CVE fix",
+        "deployment_status": "healthy",
+        "rollback_count": 0,
+        "deployed_at": "2026-03-22T21:15:00Z"
+      }
+    ],
+    "incident_amis": ["v1.2.1"],
+    "most_stable_ami": "v1.2.3",
+    "patch_frequency": "every 6.3 days on average"
+  },
   "vulnerabilityTrends": [
     {
       "label": "Mar 18",
