@@ -11,8 +11,8 @@ on:
         description: Build and test only, skip canary rollout
         required: false
         default: "false"
-  schedule:
-    - cron: "0 */6 * * *"
+  #schedule:
+    #- cron: "0 */6 * * *"
 
 permissions:
   id-token: write
